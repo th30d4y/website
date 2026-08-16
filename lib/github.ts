@@ -118,8 +118,9 @@ export async function fetchCommits(
     return await githubFetch<GitHubCommit[]>(
       `/repos/${GITHUB_USERNAME}/${repoName}/commits?per_page=${perPage}`
     );
-  } catch {
-    return [];
+  } catch (err) {
+    if ((err as Error).message === 'NOT_FOUND') return [];
+    throw err; // propagate RATE_LIMITED + other errors
   }
 }
 
@@ -137,10 +138,11 @@ export async function fetchContributors(
 ): Promise<GitHubContributor[]> {
   try {
     return await githubFetch<GitHubContributor[]>(
-      `/repos/${GITHUB_USERNAME}/${repoName}/contributors?per_page=30&anon=true`
+      `/repos/${GITHUB_USERNAME}/${repoName}/contributors?per_page=30`
     );
-  } catch {
-    return [];
+  } catch (err) {
+    if ((err as Error).message === 'NOT_FOUND') return [];
+    throw err;
   }
 }
 
@@ -162,63 +164,64 @@ export async function fetchReadme(repoName: string): Promise<string | null> {
       `/repos/${GITHUB_USERNAME}/${repoName}/readme`
     );
     if (data.encoding === 'base64') {
-      // Decode base64 content
       const decoded = Buffer.from(data.content.replace(/\n/g, ''), 'base64').toString('utf-8');
       return decoded;
     }
     return data.content;
-  } catch {
-    return null;
+  } catch (err) {
+    if ((err as Error).message === 'NOT_FOUND') return null; // no README is valid
+    throw err;
   }
 }
 
 export async function fetchTree(
   repoName: string,
-  branch = 'main'
+  branch?: string
 ): Promise<GitHubTree | null> {
+  const targetBranch = branch ?? 'main';
   try {
     return await githubFetch<GitHubTree>(
-      `/repos/${GITHUB_USERNAME}/${repoName}/git/trees/${branch}?recursive=0`
+      `/repos/${GITHUB_USERNAME}/${repoName}/git/trees/${targetBranch}?recursive=0`
     );
-  } catch {
-    // Try default branch
-    try {
-      const repo = await fetchRepository(repoName);
-      return await githubFetch<GitHubTree>(
-        `/repos/${GITHUB_USERNAME}/${repoName}/git/trees/${repo.default_branch}?recursive=0`
-      );
-    } catch {
-      return null;
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg === 'RATE_LIMITED') throw err; // let stale cache handle it
+    if (msg === 'NOT_FOUND' && !branch) {
+      // Branch might be wrong — try fetching the repo to get the real default branch
+      try {
+        const repo = await fetchRepository(repoName);
+        if (repo.default_branch !== targetBranch) {
+          return await githubFetch<GitHubTree>(
+            `/repos/${GITHUB_USERNAME}/${repoName}/git/trees/${repo.default_branch}?recursive=0`
+          );
+        }
+      } catch (inner) {
+        if ((inner as Error).message === 'RATE_LIMITED') throw inner;
+      }
     }
+    return null;
   }
 }
 
 export async function fetchIssues(
   repoName: string,
-  state: 'open' | 'closed' | 'all' = 'open'
+  state: 'open' | 'closed' | 'all' = 'all'
 ): Promise<GitHubIssue[]> {
-  try {
-    const issues = await githubFetch<GitHubIssue[]>(
-      `/repos/${GITHUB_USERNAME}/${repoName}/issues?state=${state}&per_page=20&sort=created&direction=desc`
-    );
-    // Filter out pull requests (GitHub returns PRs as issues)
-    return issues.filter((i) => !i.pull_request);
-  } catch {
-    return [];
-  }
+  // Increase per_page so we catch more issues across the board
+  const issues = await githubFetch<GitHubIssue[]>(
+    `/repos/${GITHUB_USERNAME}/${repoName}/issues?state=${state}&per_page=50&sort=created&direction=desc`
+  );
+  // GitHub's issues endpoint also returns pull requests — filter them out
+  return issues.filter((i) => !i.pull_request);
 }
 
 export async function fetchPullRequests(
   repoName: string,
-  state: 'open' | 'closed' | 'all' = 'open'
+  state: 'open' | 'closed' | 'all' = 'all'
 ): Promise<GitHubPullRequest[]> {
-  try {
-    return await githubFetch<GitHubPullRequest[]>(
-      `/repos/${GITHUB_USERNAME}/${repoName}/pulls?state=${state}&per_page=20&sort=created&direction=desc`
-    );
-  } catch {
-    return [];
-  }
+  return githubFetch<GitHubPullRequest[]>(
+    `/repos/${GITHUB_USERNAME}/${repoName}/pulls?state=${state}&per_page=50&sort=created&direction=desc`
+  );
 }
 
 export async function fetchAggregatedLanguages(

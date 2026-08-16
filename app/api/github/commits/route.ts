@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCommits } from '@/lib/github';
-import { getCache, setCache, getStaleCache, TTL } from '@/lib/cache';
+import { getCache, setCache, getStaleCache, invalidateCache, TTL } from '@/lib/cache';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -12,6 +12,11 @@ export async function GET(req: NextRequest) {
   }
 
   const cacheKey = `commits:${repo}:${perPage}`;
+
+  if (searchParams.get('refresh') === '1') {
+    invalidateCache(cacheKey);
+  }
+
   const cached = getCache(cacheKey);
   if (cached) {
     return NextResponse.json({ data: cached, cached: true });

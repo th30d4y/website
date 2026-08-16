@@ -211,14 +211,13 @@ export default function TeamPage() {
       }
       if (membersRes.status === 'fulfilled' && membersRes.value?.data) {
         setMembers(membersRes.value.data);
-        setLastUpdated(new Date());
-      } else if (membersRes.status === 'fulfilled' && membersRes.value?.error) {
-        setError(membersRes.value.error);
       }
+      // Silent on error — auto-retry via useAutoRefresh
     } catch {
-      setError('GitHub data temporarily unavailable.');
+      // Silent — keep last data, retry on next interval
     } finally {
       setLoading(false);
+      setLastUpdated(new Date()); // always tick LiveBadge
       isFirstLoad.current = false;
     }
   }, []);
@@ -347,30 +346,9 @@ export default function TeamPage() {
           )}
         </div>
 
-        {/* Error state */}
-        {error && !loading && members.length === 0 && (
-          <div style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', padding: '40px 32px', textAlign: 'center', marginBottom: 32 }}>
-            <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem', color: 'var(--text-3)', marginBottom: 20 }}>{error}</p>
-            <button onClick={handleManualRefresh}
-              style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', background: 'none', border: '1px solid rgba(0,232,122,0.25)', borderRadius: 6, padding: '7px 16px', cursor: 'pointer' }}>
-              ↻ Try Again
-            </button>
-          </div>
-        )}
-
-        {/* Token notice — shown when running without a token */}
-        {!loading && !error && members.length > 0 && members.length < 6 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 'var(--radius)', marginBottom: 16, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.875rem' }}>⚠️</span>
-            <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--yellow)', flex: 1, lineHeight: 1.5 }}>
-              Only publicly-visible members are shown. Add a <code style={{ background: 'rgba(251,191,36,0.1)', padding: '1px 5px', borderRadius: 3 }}>GITHUB_TOKEN</code> with <code style={{ background: 'rgba(251,191,36,0.1)', padding: '1px 5px', borderRadius: 3 }}>read:org</code> scope to .env.local to see all members.
-            </p>
-          </div>
-        )}
-
-        {/* Members grid */}
+        {/* Members grid — show skeletons while loading or retrying */}
         <div className="team-grid">
-          {loading
+          {loading || members.length === 0
             ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
             : members.map((m, i) => <MemberCard key={m.login} member={m} rank={i} />)
           }

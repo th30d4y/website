@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchReadme } from '@/lib/github';
-import { getCache, setCache, getStaleCache, TTL } from '@/lib/cache';
+import { getCache, setCache, getStaleCache, invalidateCache, TTL } from '@/lib/cache';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ repo: string }> }
 ) {
   const { repo } = await params;
   const cacheKey = `readme:${repo}`;
+
+  if (new URL(req.url).searchParams.get('refresh') === '1') {
+    invalidateCache(cacheKey);
+  }
+
   const cached = getCache(cacheKey);
   if (cached) {
     return NextResponse.json({ data: cached, cached: true });

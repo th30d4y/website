@@ -33,29 +33,25 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(initialData ? new Date() : null);
 
-  const fetchActivity = useCallback(async () => {
+  const fetchActivity = useCallback(async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/github/activity');
-      if (!res.ok) throw new Error(await res.text());
+      const url = force ? '/api/github/activity?refresh=1' : '/api/github/activity';
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('fetch failed');
       const json = await res.json();
       setItems(json.data || []);
-      setLastUpdated(new Date());
     } catch {
-      setError('GitHub activity is temporarily unavailable.');
+      // Stay silent — keep last data visible, auto-retry via useAutoRefresh
     } finally {
       setLoading(false);
+      setLastUpdated(new Date());
     }
   }, []);
 
-  // Auto-refresh every 3 minutes; skips first call if initialData provided
-  useAutoRefresh(
-    useCallback(async () => {
-      if (!initialData || lastUpdated) fetchActivity();
-    }, [initialData, lastUpdated, fetchActivity]),
-    REFRESH_MS
-  );
+  // Auto-refresh every 3 min; interval ticks use ?refresh=1 to bypass cache
+  useAutoRefresh(fetchActivity, REFRESH_MS);
 
   const groups = groupByDate(items);
   const displayItems = items.slice(0, 20);
@@ -77,21 +73,9 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
             lastUpdated={lastUpdated}
             refreshIntervalSec={REFRESH_MS / 1000}
             loading={loading}
-            onRefresh={fetchActivity}
+            onRefresh={() => fetchActivity(true)}
           />
         </div>
-
-        {error && (
-          <div style={{ textAlign: 'center', padding: '48px 0', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)' }}>
-            <p style={{ color: 'var(--text-3)', fontSize: '0.875rem', marginBottom: 16 }}>{error}</p>
-            <button
-              onClick={fetchActivity}
-              style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              Try again
-            </button>
-          </div>
-        )}
 
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} aria-label="Loading activity">
@@ -110,13 +94,13 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
           </div>
         )}
 
-        {!loading && !error && items.length === 0 && (
+        {!loading && items.length === 0 && (
           <div style={{ textAlign: 'center', padding: '48px 0', fontFamily: 'var(--font-mono)', fontSize: '0.875rem', color: 'var(--text-4)' }}>
             No recent activity found.
           </div>
         )}
 
-        {!loading && !error && displayItems.length > 0 && (
+        {!loading && displayItems.length > 0 && (
           <div style={{ position: 'relative' }}>
             <div style={{ position: 'absolute', left: 11, top: 0, bottom: 0, width: 1, background: 'var(--bg-raised)' }} aria-hidden="true" />
             <div>

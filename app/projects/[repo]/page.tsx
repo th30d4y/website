@@ -22,7 +22,8 @@ import {
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 type Tab = 'overview' | 'commits' | 'issues' | 'pulls' | 'contributors' | 'files';
-type AsyncState<T> = 'idle' | 'loading' | 'rate-limited' | 'error' | T;
+// Only two states: loading (skeleton shown) or the actual data
+type AsyncState<T> = 'loading' | T;
 
 interface FileContent {
   name: string;
@@ -71,24 +72,12 @@ function Skeleton({ rows = 5, type = 'list' }: { rows?: number; type?: 'list' | 
 }
 
 /* ─── Empty / retry state ─────────────────────────────────────────────────── */
-function Empty({ text, onRetry, rateLimited }: { text: string; onRetry?: () => void; rateLimited?: boolean }) {
+function Empty({ text, onRetry }: { text: string; onRetry?: () => void }) {
   return (
     <div style={{ textAlign: 'center', padding: '56px 24px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
-      {rateLimited ? (
-        <>
-          <div style={{ fontSize: '1.5rem', marginBottom: 12 }}>⚠️</div>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--text-2)', marginBottom: 6 }}>
-            GitHub API rate limit reached
-          </p>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-4)', marginBottom: 20, maxWidth: 320, margin: '0 auto 20px' }}>
-            Add a GITHUB_TOKEN to .env.local to increase the limit to 5000 req/hr
-          </p>
-        </>
-      ) : (
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--text-4)', marginBottom: onRetry ? 20 : 0 }}>
-          {text}
-        </p>
-      )}
+      <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--text-4)', marginBottom: onRetry ? 20 : 0 }}>
+        {text || 'Loading…'}
+      </p>
       {onRetry && (
         <button onClick={onRetry} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', background: 'none', border: '1px solid rgba(0,232,122,0.25)', borderRadius: 'var(--radius)', padding: '7px 16px', cursor: 'pointer', transition: 'background 0.15s' }}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,232,122,0.06)')}
@@ -109,11 +98,10 @@ function FileViewer({ repoName, item, onClose }: { repoName: string; item: GitHu
     fetch(`/api/github/file/${repoName}?path=${encodeURIComponent(item.path)}`)
       .then(r => r.json())
       .then(j => {
-        if (j.rateLimited) { setState('rate-limited'); return; }
-        if (j.error) { setState('error'); return; }
+        if (j.rateLimited || j.error) return; // stay loading silently
         setState(j.data as FileContent);
       })
-      .catch(() => setState('error'));
+      .catch(() => { /* stay loading */ });
   }, [repoName, item.path]);
 
   const ext = item.path.split('.').pop()?.toLowerCase() ?? '';
@@ -148,20 +136,6 @@ function FileViewer({ repoName, item, onClose }: { repoName: string; item: GitHu
             ))}
           </div>
         )}
-        {state === 'rate-limited' && (
-          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-            <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--text-3)', marginBottom: 8 }}>
-              GitHub API rate limit reached
-            </p>
-            <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-4)', marginBottom: 16 }}>
-              Add GITHUB_TOKEN to .env.local for 5,000 requests/hr
-            </p>
-            <code style={{ display: 'block', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', background: 'var(--bg-raised)', padding: '8px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-              GITHUB_TOKEN=ghp_your_token_here
-            </code>
-          </div>
-        )}
-        {state === 'error' && <Empty text="Could not load file content." />}
         {typeof state === 'object' && state !== null && (
           state.binary ? (
             <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem', color: 'var(--text-4)', textAlign: 'center', padding: '32px 0' }}>
@@ -195,11 +169,10 @@ function CommitDetail({ repoName, sha, onClose }: { repoName: string; sha: strin
     fetch(`/api/github/commit/${repoName}/${sha}`)
       .then(r => r.json())
       .then(j => {
-        if (j.rateLimited) { setState('rate-limited'); return; }
-        if (j.error) { setState('error'); return; }
+        if (j.rateLimited || j.error) return; // stay loading silently
         setState(j.data as CommitDetail);
       })
-      .catch(() => setState('error'));
+      .catch(() => { /* stay loading */ });
   }, [repoName, sha]);
 
   return (
@@ -215,8 +188,6 @@ function CommitDetail({ repoName, sha, onClose }: { repoName: string; sha: strin
             <div className="skeleton" style={{ height: 11, width: '40%', borderRadius: 3 }} />
           </div>
         )}
-        {state === 'rate-limited' && <Empty text="" rateLimited />}
-        {state === 'error' && <Empty text="Could not load commit details." />}
         {typeof state === 'object' && state !== null && (
           <>
             <p style={{ fontSize: '0.9375rem', color: 'var(--text)', fontWeight: 500, lineHeight: 1.5, marginBottom: 10 }}>
@@ -263,7 +234,6 @@ export default function RepoPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
   const [copied, setCopied] = useState(false);
-  const [isStale, setIsStale] = useState(false);
 
   // Tab data
   const [readme, setReadme] = useState<AsyncState<string | null>>('loading');
@@ -278,59 +248,65 @@ export default function RepoPage() {
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
 
   /* ── Fetch helpers ────────────────────────────────────────────────────── */
-  const fetchReadme = useCallback(async () => {
+  const fetchReadme = useCallback(async (force = false) => {
     setReadme('loading');
     try {
-      const j = await fetch(`/api/github/readme/${repoName}`).then(r => r.json());
-      if (j.stale) setIsStale(true);
-      setReadme(j.rateLimited ? 'rate-limited' : j.error ? 'error' : (j.data ?? null));
-    } catch { setReadme('error'); }
+      const url = `/api/github/readme/${repoName}${force ? '?refresh=1' : ''}`;
+      const j = await fetch(url).then(r => r.json());
+      if (j.rateLimited || j.error) return; // stay 'loading', auto-retry later
+      setReadme(j.data ?? null);
+    } catch { /* stay loading */ }
   }, [repoName]);
 
-  const fetchCommits = useCallback(async () => {
+  const fetchCommits = useCallback(async (force = false) => {
     setCommits('loading');
     try {
-      const j = await fetch(`/api/github/commits?repo=${repoName}&per_page=30`).then(r => r.json());
-      if (j.stale) setIsStale(true);
-      setCommits(j.rateLimited ? 'rate-limited' : j.error ? 'error' : (j.data || []));
-    } catch { setCommits('error'); }
+      const url = `/api/github/commits?repo=${repoName}&per_page=30${force ? '&refresh=1' : ''}`;
+      const j = await fetch(url).then(r => r.json());
+      if (j.rateLimited || j.error) return;
+      setCommits(j.data || []);
+    } catch { /* stay loading */ }
   }, [repoName]);
 
-  const fetchIssues = useCallback(async () => {
+  const fetchIssues = useCallback(async (force = false) => {
     setIssues('loading');
     try {
-      const j = await fetch(`/api/github/issues/${repoName}?state=all`).then(r => r.json());
-      if (j.stale) setIsStale(true);
-      setIssues(j.rateLimited ? 'rate-limited' : j.error ? 'error' : (j.data || []));
-    } catch { setIssues('error'); }
+      const url = `/api/github/issues/${repoName}?state=all${force ? '&refresh=1' : ''}`;
+      const j = await fetch(url).then(r => r.json());
+      if (j.rateLimited || j.error) return;
+      setIssues(j.data || []);
+    } catch { /* stay loading */ }
   }, [repoName]);
 
-  const fetchPulls = useCallback(async () => {
+  const fetchPulls = useCallback(async (force = false) => {
     setPulls('loading');
     try {
-      const j = await fetch(`/api/github/pulls/${repoName}?state=all`).then(r => r.json());
-      if (j.stale) setIsStale(true);
-      setPulls(j.rateLimited ? 'rate-limited' : j.error ? 'error' : (j.data || []));
-    } catch { setPulls('error'); }
+      const url = `/api/github/pulls/${repoName}?state=all${force ? '&refresh=1' : ''}`;
+      const j = await fetch(url).then(r => r.json());
+      if (j.rateLimited || j.error) return;
+      setPulls(j.data || []);
+    } catch { /* stay loading */ }
   }, [repoName]);
 
-  const fetchContributors = useCallback(async () => {
+  const fetchContributors = useCallback(async (force = false) => {
     setContributors('loading');
     try {
-      const j = await fetch(`/api/github/contributors/${repoName}`).then(r => r.json());
-      if (j.stale) setIsStale(true);
-      setContributors(j.rateLimited ? 'rate-limited' : j.error ? 'error' : (j.data || []));
-    } catch { setContributors('error'); }
+      const url = `/api/github/contributors/${repoName}${force ? '?refresh=1' : ''}`;
+      const j = await fetch(url).then(r => r.json());
+      if (j.rateLimited || j.error) return;
+      setContributors(j.data || []);
+    } catch { /* stay loading */ }
   }, [repoName]);
 
-  const fetchTree = useCallback(async (defaultBranch?: string) => {
+  const fetchTree = useCallback(async (defaultBranch?: string, force = false) => {
     setTreeItems('loading');
     try {
       const branch = defaultBranch ?? 'main';
-      const j = await fetch(`/api/github/tree/${repoName}?branch=${encodeURIComponent(branch)}`).then(r => r.json());
-      if (j.stale) setIsStale(true);
-      setTreeItems(j.rateLimited ? 'rate-limited' : j.error ? 'error' : (j.data?.tree || []));
-    } catch { setTreeItems('error'); }
+      const url = `/api/github/tree/${repoName}?branch=${encodeURIComponent(branch)}${force ? '&refresh=1' : ''}`;
+      const j = await fetch(url).then(r => r.json());
+      if (j.rateLimited || j.error) return;
+      setTreeItems(j.data?.tree || []);
+    } catch { /* stay loading */ }
   }, [repoName]);
 
   /* ── Load repo, then fire all fetches ─────────────────────────────────── */
@@ -342,7 +318,6 @@ export default function RepoPage() {
         const found = (j.data?.repos || []).find((r: GitHubRepository) => r.name === repoName);
         if (!found) throw new Error('not found');
         setRepo(found);
-        // Fire all tab fetches in parallel
         fetchReadme();
         fetchCommits();
         fetchIssues();
@@ -356,6 +331,16 @@ export default function RepoPage() {
       }
     })();
   }, [repoName, fetchReadme, fetchCommits, fetchIssues, fetchPulls, fetchContributors, fetchTree]);
+
+  /* ── Auto-refresh volatile data every 5 minutes ──────────────────────── */
+  useEffect(() => {
+    const id = setInterval(() => {
+      fetchIssues(true);
+      fetchCommits(true);
+      fetchPulls(true);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [fetchIssues, fetchCommits, fetchPulls]);
 
   /* ── Loading ──────────────────────────────────────────────────────────── */
   if (pageLoading) return (
@@ -403,14 +388,6 @@ export default function RepoPage() {
   return (
     <div style={{ minHeight: '100vh', paddingTop: 64 }}>
       <div className="section__container" style={{ paddingTop: 36, paddingBottom: 96 }}>
-
-        {/* Stale data notice */}
-        {isStale && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 'var(--radius)', marginBottom: 16, fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--yellow)' }}>
-            <span>⚠</span>
-            <span>Showing cached data — add GITHUB_TOKEN to .env.local for live data (5000 req/hr)</span>
-          </div>
-        )}
 
         {/* ── Breadcrumb ─────────────────────────────────────────── */}
         <nav aria-label="Breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: '0.75rem', marginBottom: 24 }}>
@@ -529,9 +506,7 @@ export default function RepoPage() {
                 {[1, 2, 3, 5].map(w => <div key={w} className="skeleton" style={{ height: 13, width: `${w * 18 + 10}%`, borderRadius: 3, marginBottom: 10 }} />)}
               </div>
             )}
-            {readme === 'rate-limited' && <Empty text="" rateLimited onRetry={fetchReadme} />}
-            {readme === 'error' && <Empty text="Could not load README." onRetry={fetchReadme} />}
-            {(readme === null || typeof readme === 'string') && readme !== 'loading' && readme !== 'error' && readme !== 'rate-limited' && (
+            {(readme === null || typeof readme === 'string') && readme !== 'loading' && (
               typeof readme === 'string' ? (
                 <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: 'clamp(20px,4vw,28px)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
@@ -550,8 +525,6 @@ export default function RepoPage() {
         {/* ── COMMITS ─────────────────────────────────────────────── */}
         {tab === 'commits' && (
           commits === 'loading' ? <Skeleton rows={6} />
-          : commits === 'rate-limited' ? <Empty text="" rateLimited onRetry={fetchCommits} />
-          : commits === 'error' ? <Empty text="Could not load commits." onRetry={fetchCommits} />
           : !(commits as GitHubCommit[]).length ? <Empty text="No commits found." />
           : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -593,8 +566,6 @@ export default function RepoPage() {
         {/* ── ISSUES ──────────────────────────────────────────────── */}
         {tab === 'issues' && (
           issues === 'loading' ? <Skeleton rows={4} />
-          : issues === 'rate-limited' ? <Empty text="" rateLimited onRetry={fetchIssues} />
-          : issues === 'error' ? <Empty text="Could not load issues." onRetry={fetchIssues} />
           : !(issues as GitHubIssue[]).length ? <Empty text="No issues found." />
           : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -638,8 +609,6 @@ export default function RepoPage() {
         {/* ── PULL REQUESTS ───────────────────────────────────────── */}
         {tab === 'pulls' && (
           pulls === 'loading' ? <Skeleton rows={3} />
-          : pulls === 'rate-limited' ? <Empty text="" rateLimited onRetry={fetchPulls} />
-          : pulls === 'error' ? <Empty text="Could not load pull requests." onRetry={fetchPulls} />
           : !(pulls as GitHubPullRequest[]).length ? <Empty text="No pull requests found." />
           : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -683,8 +652,6 @@ export default function RepoPage() {
         {/* ── CONTRIBUTORS ────────────────────────────────────────── */}
         {tab === 'contributors' && (
           contributors === 'loading' ? <Skeleton rows={4} />
-          : contributors === 'rate-limited' ? <Empty text="" rateLimited onRetry={fetchContributors} />
-          : contributors === 'error' ? <Empty text="Could not load contributors." onRetry={fetchContributors} />
           : !(contributors as GitHubContributor[]).length ? <Empty text="No contributor data available." />
           : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -724,10 +691,6 @@ export default function RepoPage() {
                 </div>
               ))}
             </div>
-          ) : treeItems === 'rate-limited' ? (
-            <Empty text="" rateLimited onRetry={() => fetchTree(repo.default_branch)} />
-          ) : treeItems === 'error' ? (
-            <Empty text="Could not load file tree." onRetry={() => fetchTree(repo.default_branch)} />
           ) : !sortedTree.length ? (
             <Empty text="No files found." />
           ) : (

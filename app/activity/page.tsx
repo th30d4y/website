@@ -80,20 +80,21 @@ export default function ActivityPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [repoFilter, setRepoFilter] = useState<string>('all');
 
-  const fetchActivity = useCallback(async () => {
+  const fetchActivity = useCallback(async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/github/events');
+      const url = force ? '/api/github/events?refresh=1' : '/api/github/events';
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed');
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setItems(json.data || []);
-      setLastUpdated(new Date());
     } catch {
-      setError('GitHub activity is temporarily unavailable.');
+      // Silent — keep showing last data, auto-retry via useAutoRefresh
     } finally {
       setLoading(false);
+      setLastUpdated(new Date());
     }
   }, []);
 
@@ -138,7 +139,7 @@ export default function ActivityPage() {
             lastUpdated={lastUpdated}
             refreshIntervalSec={REFRESH_MS / 1000}
             loading={loading}
-            onRefresh={fetchActivity}
+            onRefresh={() => fetchActivity(true)}
           />
         </div>
 
@@ -206,19 +207,6 @@ export default function ActivityPage() {
           </div>
         )}
 
-        {/* Error */}
-        {error && (
-          <div style={{ textAlign: 'center', padding: '48px 0', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)' }}>
-            <p style={{ color: 'var(--text-3)', fontSize: '0.875rem', marginBottom: 16 }}>{error}</p>
-            <button
-              onClick={fetchActivity}
-              style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              Try again
-            </button>
-          </div>
-        )}
-
         {/* Loading skeleton */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} aria-label="Loading activity">
@@ -239,7 +227,7 @@ export default function ActivityPage() {
         )}
 
         {/* Empty */}
-        {!loading && !error && filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '64px 0', fontFamily: 'var(--font-mono)', fontSize: '0.875rem', color: 'var(--text-4)' }}>
             {typeFilter !== 'all' || repoFilter !== 'all' ? (
               <>
@@ -258,7 +246,7 @@ export default function ActivityPage() {
         )}
 
         {/* Timeline */}
-        {!loading && !error && filtered.length > 0 && (
+        {!loading && filtered.length > 0 && (
           <div style={{ position: 'relative' }}>
             <div style={{ position: 'absolute', left: 13, top: 0, bottom: 0, width: 1, background: 'var(--bg-raised)' }} aria-hidden="true" />
 

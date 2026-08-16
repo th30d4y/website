@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchTree } from '@/lib/github';
-import { getCache, setCache, getStaleCache, TTL } from '@/lib/cache';
+import { getCache, setCache, getStaleCache, invalidateCache, TTL } from '@/lib/cache';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ repo: string }> }
 ) {
   const { repo } = await params;
-  const branch = new URL(req.url).searchParams.get('branch') ?? undefined;
+  const { searchParams } = new URL(req.url);
+  const branch = searchParams.get('branch') ?? undefined;
 
   const cacheKey = `tree:${repo}:${branch ?? 'auto'}`;
+
+  if (searchParams.get('refresh') === '1') {
+    invalidateCache(cacheKey);
+  }
+
   const cached = getCache(cacheKey);
   if (cached) {
     return NextResponse.json({ data: cached, cached: true });

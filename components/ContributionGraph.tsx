@@ -55,20 +55,20 @@ export default function ContributionGraph() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/github/activity');
+      const url = force ? '/api/github/activity?refresh=1' : '/api/github/activity';
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed');
       const json = await res.json();
       const heatmap = buildHeatmapFromActivity(json.data || []);
       setDays(heatmap);
-      setLastUpdated(new Date());
     } catch {
-      // Build empty heatmap on error
       setDays(buildHeatmapFromActivity([]));
     } finally {
       setLoading(false);
+      setLastUpdated(new Date());
     }
   }, []);
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
 const links = [
@@ -51,8 +52,14 @@ export default function Navbar() {
           className="navbar__logo"
           aria-label="0d4y.dev — home"
         >
-          <span className="navbar__logo-accent">0d4y</span>
-          <span className="navbar__logo-dim">.dev</span>
+          <Image
+            src="https://avatars.githubusercontent.com/u/222680092?v=4"
+            alt="0d4y"
+            width={28}
+            height={28}
+            style={{ borderRadius: 8, display: 'block' }}
+            priority
+          />
         </Link>
 
         {/* Desktop nav links */}

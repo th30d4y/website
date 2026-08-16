@@ -23,10 +23,11 @@ export default function HomePage() {
   const [loadingRepos, setLoadingRepos] = useState(true);
   const [langFilter, setLangFilter] = useState<string | null>(null);
 
-  const fetchUser = useCallback(async () => {
+  const fetchUser = useCallback(async (force = false) => {
     setLoadingUser(true);
     try {
-      const res = await fetch('/api/github/user');
+      const url = force ? '/api/github/user?refresh=1' : '/api/github/user';
+      const res = await fetch(url);
       const json = await res.json();
       if (json.data) setUser(json.data);
     } catch {
@@ -36,10 +37,11 @@ export default function HomePage() {
     }
   }, []);
 
-  const fetchRepos = useCallback(async () => {
+  const fetchRepos = useCallback(async (force = false) => {
     setLoadingRepos(true);
     try {
-      const res = await fetch('/api/github/repos');
+      const url = force ? '/api/github/repos?refresh=1' : '/api/github/repos';
+      const res = await fetch(url);
       const json = await res.json();
       if (json.data) {
         setRepos(json.data.repos || []);
@@ -52,7 +54,7 @@ export default function HomePage() {
     }
   }, []);
 
-  // Auto-refresh every 5 minutes
+  // Auto-refresh every 5 minutes; interval ticks bypass cache (?refresh=1)
   useAutoRefresh(fetchUser, REFRESH_MS);
   useAutoRefresh(fetchRepos, REFRESH_MS);
 

@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchRepositories, fetchCommits, truncateMessage } from '@/lib/github';
-import { getCache, setCache, getStaleCache, TTL } from '@/lib/cache';
+import { getCache, setCache, getStaleCache, invalidateCache, TTL } from '@/lib/cache';
 import type { GitHubRepository } from '@/types/github';
 
 export interface ActivityItem {
@@ -16,7 +16,11 @@ export interface ActivityItem {
 
 const cacheKey = 'activity';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (new URL(req.url).searchParams.get('refresh') === '1') {
+    invalidateCache(cacheKey);
+  }
+
   const cached = getCache<ActivityItem[]>(cacheKey);
   if (cached) {
     return NextResponse.json({ data: cached, cached: true });
