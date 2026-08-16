@@ -8,6 +8,10 @@ import type {
   GitHubPullRequest,
   GitHubTree,
   LanguageStat,
+  GitHubOrg,
+  GitHubMember,
+  GitHubEvent,
+  NormalizedActivity,
 } from '@/types/github';
 
 export const GITHUB_USERNAME = 'th30d4y';
@@ -313,4 +317,196 @@ export function truncateMessage(msg: string, len = 80): string {
   const firstLine = msg.split('\n')[0];
   if (firstLine.length <= len) return firstLine;
   return firstLine.slice(0, len) + '…';
+}
+
+// ─── Organization ─────────────────────────────────────────────────────────
+
+export async function fetchOrganization(): Promise<GitHubOrg | GitHubUser> {
+  try {
+    return await githubFetch<GitHubOrg>(`/orgs/${GITHUB_USERNAME}`);
+  } catch {
+    // org not found — fall back to user profile
+    return fetchUser();
+  }
+}
+
+export async function fetchOrgMembers(): Promise<GitHubMember[]> {
+  try {
+    // Try org members endpoint
+    const members = await githubFetch<GitHubMember[]>(
+      `/orgs/${GITHUB_USERNAME}/members?per_page=30`
+    );
+
+    if (!members || members.length === 0) {
+      throw new Error('empty');
+    }
+
+    // Enrich with full profiles (cap at 20 to avoid rate limits)
+    const enriched = await Promise.allSettled(
+      members.slice(0, 20).map(async (m) => {
+        try {
+          const profile = await githubFetch<GitHubUser>(`/users/${m.login}`);
+          return {
+            ...m,
+            name: profile.name,
+            bio: profile.bio,
+            public_repos: profile.public_repos,
+            followers: profile.followers,
+            location: profile.location,
+            blog: profile.blog,
+            company: profile.company,
+          } as GitHubMember;
+        } catch {
+          return m;
+        }
+      })
+    );
+
+    return enriched
+      .filter((r): r is PromiseFulfilledResult<GitHubMember> => r.status === 'fulfilled')
+      .map((r) => r.value);
+  } catch {
+    // Fall back: return the owner as sole member
+    const user = await fetchUser();
+    return [
+      {
+        login: user.login,
+        id: user.id,
+        avatar_url: user.avatar_url,
+        html_url: user.html_url,
+        type: 'User',
+        name: user.name,
+        bio: user.bio,
+        public_repos: user.public_repos,
+        followers: user.followers,
+        location: user.location,
+        blog: user.blog,
+        company: user.company,
+      },
+    ];
+  }
+}
+
+// ─── Events ───────────────────────────────────────────────────────────────
+
+export async function fetchPublicEvents(perPage = 60): Promise<GitHubEvent[]> {
+  const page1 = await githubFetch<GitHubEvent[]>(
+    `/users/${GITHUB_USERNAME}/events/public?per_page=30&page=1`
+  ).catch(() => []);
+
+  let page2: GitHubEvent[] = [];
+  if (perPage > 30) {
+    page2 = await githubFetch<GitHubEvent[]>(
+      `/users/${GITHUB_USERNAME}/events/public?per_page=30&page=2`
+    ).catch(() => []);
+  }
+
+  return [...page1, ...page2].slice(0, perPage);
+}
+
+export function normalizeEvent(event: GitHubEvent): NormalizedActivity {
+  const repoName = event.repo.name.replace(`${GITHUB_USERNAME}/`, '');
+  const repoUrl = `https://github.com/${event.repo.name}`;
+
+  let icon = '◈';
+  let title = event.type.replace('Event', '');
+  let detail: string | null = null;
+  let url: string | null = repoUrl;
+
+  switch (event.type) {
+    case 'PushEvent': {
+      const commits = event.payload.commits ?? [];
+      const count = event.payload.distinct_size ?? commits.length;
+      icon = '↑';
+      title = `pushed ${count} commit${count !== 1 ? 's' : ''}`;
+      detail = commits[0]?.message ? truncateMessage(commits[0].message, 72) : null;
+      url = commits[0]
+        ? `https://github.com/${event.repo.name}/commit/${commits[0].sha}`
+        : repoUrl;
+      break;
+    }
+    case 'PullRequestEvent': {
+      const pr = event.payload.pull_request;
+      const action = event.payload.action;
+      icon = action === 'closed' && pr?.merged ? '⟳' : action === 'closed' ? '✕' : '⤷';
+      const label = action === 'closed' && pr?.merged ? 'merged' : action ?? 'updated';
+      title = `${label} PR #${pr?.number ?? ''}`;
+      detail = pr?.title ? truncateMessage(pr.title, 72) : null;
+      url = pr?.html_url ?? repoUrl;
+      break;
+    }
+    case 'IssuesEvent': {
+      const issue = event.payload.issue;
+      icon = event.payload.action === 'opened' ? '◎' : '●';
+      title = `${event.payload.action ?? 'updated'} issue #${issue?.number ?? ''}`;
+      detail = issue?.title ? truncateMessage(issue.title, 72) : null;
+      url = issue?.html_url ?? repoUrl;
+      break;
+    }
+    case 'CreateEvent': {
+      const refType = event.payload.ref_type ?? 'repository';
+      const ref = event.payload.ref;
+      icon = '✦';
+      title = ref ? `created ${refType} ${ref}` : `created ${refType}`;
+      url = ref && refType === 'branch'
+        ? `https://github.com/${event.repo.name}/tree/${ref}`
+        : repoUrl;
+      break;
+    }
+    case 'ForkEvent': {
+      icon = '⑂';
+      title = 'forked';
+      detail = event.payload.forkee?.full_name ?? null;
+      url = event.payload.forkee?.html_url ?? repoUrl;
+      break;
+    }
+    case 'WatchEvent': {
+      icon = '★';
+      title = 'starred';
+      url = repoUrl;
+      break;
+    }
+    case 'ReleaseEvent': {
+      const release = event.payload.release;
+      icon = '◈';
+      title = `released ${release?.tag_name ?? ''}`;
+      detail = release?.name ? truncateMessage(release.name, 72) : null;
+      url = release?.html_url ?? repoUrl;
+      break;
+    }
+    case 'IssueCommentEvent': {
+      icon = '◇';
+      title = 'commented on issue';
+      detail = event.payload.comment?.body
+        ? truncateMessage(event.payload.comment.body, 72)
+        : null;
+      url = event.payload.comment?.html_url ?? repoUrl;
+      break;
+    }
+    case 'DeleteEvent': {
+      icon = '✕';
+      title = `deleted ${event.payload.ref_type ?? 'branch'} ${event.payload.ref ?? ''}`;
+      url = repoUrl;
+      break;
+    }
+    default: {
+      icon = '◈';
+      title = event.type.replace('Event', '').toLowerCase();
+      url = repoUrl;
+    }
+  }
+
+  return {
+    id: event.id,
+    type: event.type,
+    icon,
+    title,
+    detail,
+    url,
+    repo: repoName,
+    repoUrl,
+    actor: event.actor.login,
+    actorAvatar: event.actor.avatar_url,
+    date: event.created_at,
+  };
 }

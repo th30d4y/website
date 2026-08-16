@@ -214,3 +214,137 @@ export interface APIError {
   status?: number;
   rateLimited?: boolean;
 }
+
+export interface GitHubOrg {
+  login: string;
+  id: number;
+  name: string | null;
+  description: string | null;
+  avatar_url: string;
+  html_url: string;
+  public_repos: number;
+  public_members_url: string;
+  members_url: string;
+  blog: string | null;
+  location: string | null;
+  email: string | null;
+  created_at: string;
+  updated_at: string;
+  type: 'Organization';
+  followers: number;
+}
+
+export interface GitHubMember {
+  login: string;
+  id: number;
+  avatar_url: string;
+  html_url: string;
+  type: string;
+  // enriched from full profile fetch
+  name?: string | null;
+  bio?: string | null;
+  public_repos?: number;
+  followers?: number;
+  location?: string | null;
+  blog?: string | null;
+  company?: string | null;
+}
+
+export type GitHubEventType =
+  | 'PushEvent'
+  | 'PullRequestEvent'
+  | 'IssuesEvent'
+  | 'CreateEvent'
+  | 'ForkEvent'
+  | 'WatchEvent'
+  | 'DeleteEvent'
+  | 'ReleaseEvent'
+  | 'IssueCommentEvent'
+  | 'PullRequestReviewEvent';
+
+export interface GitHubEventActor {
+  id: number;
+  login: string;
+  display_login?: string;
+  avatar_url: string;
+  url: string;
+}
+
+export interface GitHubEventRepo {
+  id: number;
+  name: string;
+  url: string;
+}
+
+export interface GitHubEventPayload {
+  // PushEvent
+  commits?: Array<{
+    sha: string;
+    message: string;
+    author: { email: string; name: string };
+    url: string;
+    distinct: boolean;
+  }>;
+  ref?: string;
+  ref_type?: string;
+  size?: number;
+  distinct_size?: number;
+  // PullRequestEvent / IssuesEvent
+  action?: string;
+  pull_request?: {
+    number: number;
+    title: string;
+    html_url: string;
+    state: string;
+    merged?: boolean;
+    draft?: boolean;
+  };
+  issue?: {
+    number: number;
+    title: string;
+    html_url: string;
+    state: string;
+  };
+  // ForkEvent
+  forkee?: {
+    full_name: string;
+    html_url: string;
+    description: string | null;
+  };
+  // ReleaseEvent
+  release?: {
+    tag_name: string;
+    name: string | null;
+    html_url: string;
+    prerelease: boolean;
+  };
+  // IssueCommentEvent
+  comment?: {
+    html_url: string;
+    body: string;
+  };
+}
+
+export interface GitHubEvent {
+  id: string;
+  type: GitHubEventType | string;
+  actor: GitHubEventActor;
+  repo: GitHubEventRepo;
+  payload: GitHubEventPayload;
+  public: boolean;
+  created_at: string;
+}
+
+export interface NormalizedActivity {
+  id: string;
+  type: GitHubEventType | string;
+  icon: string;
+  title: string;
+  detail: string | null;
+  url: string | null;
+  repo: string;
+  repoUrl: string;
+  actor: string;
+  actorAvatar: string;
+  date: string;
+}

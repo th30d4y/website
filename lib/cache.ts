@@ -51,4 +51,7 @@ export const TTL = {
   TREE: 15 * 60 * 1000,
   ISSUES: 5 * 60 * 1000,
   PULLS: 5 * 60 * 1000,
+  ORG: 10 * 60 * 1000,       // 10 minutes
+  MEMBERS: 15 * 60 * 1000,   // 15 minutes
+  EVENTS: 3 * 60 * 1000,     // 3 minutes
 };

@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { Metadata } from 'next';
 import type { GitHubRepository } from '@/types/github';
 import ProjectCard from '@/components/ProjectCard';
 import { getLanguageColor } from '@/lib/github';
 
 type SortOption = 'pushed' | 'created' | 'stars' | 'forks' | 'name';
-type FilterOption = 'all' | 'archived' | string; // string = language name
+type FilterOption = 'all' | 'active' | 'archived' | 'forks' | string; // string = language name
 
 function SkeletonCard() {
   return (
@@ -87,8 +86,12 @@ export default function ProjectsPage() {
     }
 
     // Filter
-    if (filter === 'archived') {
+    if (filter === 'active') {
+      result = result.filter((r) => !r.archived && !r.fork);
+    } else if (filter === 'archived') {
       result = result.filter((r) => r.archived);
+    } else if (filter === 'forks') {
+      result = result.filter((r) => r.fork);
     } else if (filter !== 'all') {
       result = result.filter((r) => r.language === filter);
     }
@@ -196,6 +199,32 @@ export default function ProjectsPage() {
           >
             All ({repos.length})
           </button>
+
+          <button
+            onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}
+            className={`px-3 py-1 rounded-full font-mono text-xs border transition-colors ${
+              filter === 'active'
+                ? 'bg-[#141414] border-[#2a2a2a] text-white'
+                : 'border-[#1e1e1e] text-[#6b7280] hover:border-[#2a2a2a] hover:text-white'
+            }`}
+            aria-pressed={filter === 'active'}
+          >
+            Active ({repos.filter((r) => !r.archived && !r.fork).length})
+          </button>
+
+          {repos.some((r) => r.fork) && (
+            <button
+              onClick={() => setFilter(filter === 'forks' ? 'all' : 'forks')}
+              className={`px-3 py-1 rounded-full font-mono text-xs border transition-colors ${
+                filter === 'forks'
+                  ? 'bg-[#141414] border-[#2a2a2a] text-white'
+                  : 'border-[#1e1e1e] text-[#6b7280] hover:border-[#2a2a2a] hover:text-white'
+              }`}
+              aria-pressed={filter === 'forks'}
+            >
+              Forks ({repos.filter((r) => r.fork).length})
+            </button>
+          )}
 
           {languageOptions.map((lang) => {
             const count = repos.filter((r) => r.language === lang).length;
