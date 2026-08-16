@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import type { ActivityItem } from '@/app/api/github/activity/route';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import LiveBadge from '@/components/LiveBadge';
 
 interface DayData {
   date: string;
@@ -50,6 +52,7 @@ interface TooltipState {
 export default function ContributionGraph() {
   const [days, setDays] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -60,6 +63,7 @@ export default function ContributionGraph() {
       const json = await res.json();
       const heatmap = buildHeatmapFromActivity(json.data || []);
       setDays(heatmap);
+      setLastUpdated(new Date());
     } catch {
       // Build empty heatmap on error
       setDays(buildHeatmapFromActivity([]));
@@ -68,9 +72,8 @@ export default function ContributionGraph() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  // Auto-refresh every 5 minutes
+  useAutoRefresh(fetchData, 5 * 60 * 1000);
 
   const maxCount = Math.max(...days.map((d) => d.count), 1);
   const totalContributions = days.reduce((sum, d) => sum + d.count, 0);
@@ -103,7 +106,7 @@ export default function ContributionGraph() {
   return (
     <section id="contributions" aria-label="Contribution Graph" className="section">
       <div className="section__container">
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div className="section__eyebrow">
               <span className="live-dot" aria-hidden="true" />
@@ -112,11 +115,19 @@ export default function ContributionGraph() {
             <h2 className="section__heading">Contribution Graph</h2>
             <p className="section__sub" style={{ marginBottom: 0 }}>Commit activity over the past year</p>
           </div>
-          {!loading && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-4)' }}>
-              {totalContributions} commits tracked
-            </span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {!loading && (
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-4)' }}>
+                {totalContributions} commits tracked
+              </span>
+            )}
+            <LiveBadge
+              lastUpdated={lastUpdated}
+              refreshIntervalSec={5 * 60}
+              loading={loading}
+              onRefresh={fetchData}
+            />
+          </div>
         </div>
 
         <div style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', padding: '20px 24px', overflowX: 'auto' }}>
@@ -158,7 +169,7 @@ export default function ContributionGraph() {
                 <div className="flex gap-0.5">
                   {weeks.map((week, wi) => (
                     <div key={wi} className="flex flex-col gap-0.5">
-                      {week.map((day, di) => (
+                      {week.map((day) => (
                         <div
                           key={day.date}
                           className="w-[11px] h-[11px] rounded-sm heatmap-cell cursor-default"

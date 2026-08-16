@@ -9,7 +9,7 @@ const links = [
   { href: '/projects', label: 'Projects' },
   { href: '/activity', label: 'Activity' },
   { href: '/team', label: 'Team' },
-  { href: '/#about', label: 'About' },
+  { href: '/about', label: 'About' },
 ];
 
 const GithubIcon = () => (

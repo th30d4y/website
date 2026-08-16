@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import type { NormalizedActivity } from '@/types/github';
 import { formatRelativeTime } from '@/lib/github';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import LiveBadge from '@/components/LiveBadge';
+
+const REFRESH_MS = 3 * 60 * 1000; // 3 minutes
 
 const EVENT_COLORS: Record<string, string> = {
   PushEvent: 'var(--accent)',
@@ -93,9 +97,8 @@ export default function ActivityPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchActivity();
-  }, [fetchActivity]);
+  // Auto-refresh every 3 minutes
+  useAutoRefresh(fetchActivity, REFRESH_MS);
 
   // Build filter options from actual data
   const allTypes = Array.from(
@@ -131,22 +134,12 @@ export default function ActivityPage() {
               {loading ? 'Loading events…' : `${items.length} events from the last 90 days`}
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-3)', flexShrink: 0 }}>
-            {lastUpdated && (
-              <span style={{ color: 'var(--text-4)' }}>
-                Updated {lastUpdated.toLocaleTimeString()}
-              </span>
-            )}
-            <button
-              onClick={fetchActivity}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 0.15s', fontFamily: 'var(--font-mono)', fontSize: '0.6875rem' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
-              aria-label="Refresh activity"
-            >
-              ↻ Refresh
-            </button>
-          </div>
+          <LiveBadge
+            lastUpdated={lastUpdated}
+            refreshIntervalSec={REFRESH_MS / 1000}
+            loading={loading}
+            onRefresh={fetchActivity}
+          />
         </div>
 
         {/* Filters */}

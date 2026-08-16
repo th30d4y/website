@@ -1,20 +1,34 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchOrgMembers } from '@/lib/github';
-import { getCache, setCache, TTL } from '@/lib/cache';
+import { getCache, setCache, getStaleCache, invalidateCache, TTL } from '@/lib/cache';
 
-export async function GET() {
-  const cached = getCache('org:members');
+const cacheKey = 'org:members';
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const forceRefresh = searchParams.get('refresh') === '1';
+
+  if (forceRefresh) {
+    invalidateCache(cacheKey);
+  }
+
+  const cached = getCache(cacheKey);
   if (cached) {
     return NextResponse.json({ data: cached, cached: true });
   }
 
   try {
     const members = await fetchOrgMembers();
-    setCache('org:members', members, TTL.MEMBERS);
-    return NextResponse.json({ data: members, cached: false });
+    const isFallback = members.length === 1;
+    setCache(cacheKey, members, isFallback ? 60_000 : TTL.MEMBERS);
+    return NextResponse.json({ data: members, cached: false, fallback: isFallback });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     if (msg === 'RATE_LIMITED') {
+      const stale = getStaleCache(cacheKey);
+      if (stale) {
+        return NextResponse.json({ data: stale.data, cached: true, stale: true, staleAgeMs: stale.ageMs });
+      }
       return NextResponse.json(
         { error: 'GitHub API rate limit reached', rateLimited: true },
         { status: 429 }

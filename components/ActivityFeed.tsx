@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import type { ActivityItem } from '@/app/api/github/activity/route';
 import { formatRelativeTime } from '@/lib/github';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import LiveBadge from '@/components/LiveBadge';
+
+const REFRESH_MS = 3 * 60 * 1000; // 3 minutes
 
 interface ActivityFeedProps {
   initialData?: ActivityItem[];
@@ -27,7 +31,7 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
   const [items, setItems] = useState<ActivityItem[]>(initialData || []);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(initialData ? new Date() : null);
 
   const fetchActivity = useCallback(async () => {
     setLoading(true);
@@ -45,13 +49,13 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!initialData) {
-      fetchActivity();
-    } else {
-      setLastUpdated(new Date());
-    }
-  }, [initialData, fetchActivity]);
+  // Auto-refresh every 3 minutes; skips first call if initialData provided
+  useAutoRefresh(
+    useCallback(async () => {
+      if (!initialData || lastUpdated) fetchActivity();
+    }, [initialData, lastUpdated, fetchActivity]),
+    REFRESH_MS
+  );
 
   const groups = groupByDate(items);
   const displayItems = items.slice(0, 20);
@@ -60,7 +64,7 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
     <section id="activity" aria-label="Latest GitHub Activity" className="section">
       <div className="section__container">
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40, gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40, gap: 16, flexWrap: 'wrap' }}>
           <div>
             <div className="section__eyebrow">
               <span className="live-dot" aria-hidden="true" />
@@ -69,19 +73,12 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
             <h2 className="section__heading">Latest Commits</h2>
             <p className="section__sub" style={{ marginBottom: 0 }}>Real-time commit feed across repositories</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-3)', flexShrink: 0 }}>
-            {lastUpdated && <span>{formatRelativeTime(lastUpdated.toISOString())}</span>}
-            <button
-              onClick={fetchActivity}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 0.15s', fontFamily: 'var(--font-mono)', fontSize: '0.6875rem' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
-              aria-label="Refresh activity"
-            >
-              <span style={{ display: 'inline-block', transition: 'transform 0.3s' }}>↻</span>
-              Refresh
-            </button>
-          </div>
+          <LiveBadge
+            lastUpdated={lastUpdated}
+            refreshIntervalSec={REFRESH_MS / 1000}
+            loading={loading}
+            onRefresh={fetchActivity}
+          />
         </div>
 
         {error && (
@@ -122,7 +119,6 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
         {!loading && !error && displayItems.length > 0 && (
           <div style={{ position: 'relative' }}>
             <div style={{ position: 'absolute', left: 11, top: 0, bottom: 0, width: 1, background: 'var(--bg-raised)' }} aria-hidden="true" />
-
             <div>
               {Array.from(groups.entries()).map(([date, dateItems]) => (
                 <div key={date}>
@@ -132,7 +128,6 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
                     </div>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-3)', paddingLeft: 40, fontWeight: 500, letterSpacing: '0.04em' }}>{date}</span>
                   </div>
-
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 40, marginBottom: 20 }}>
                     {dateItems.map((item) => (
                       <div key={`${item.repo}-${item.sha}`} className="timeline-entry">

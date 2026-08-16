@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCommits } from '@/lib/github';
-import { getCache, setCache, TTL } from '@/lib/cache';
+import { getCache, setCache, getStaleCache, TTL } from '@/lib/cache';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     if (msg === 'RATE_LIMITED') {
+      const stale = getStaleCache(cacheKey);
+      if (stale) {
+        return NextResponse.json({ data: stale.data, cached: true, stale: true, staleAgeMs: stale.ageMs });
+      }
       return NextResponse.json(
         { error: 'GitHub API rate limit reached', rateLimited: true },
         { status: 429 }
@@ -31,6 +35,10 @@ export async function GET(req: NextRequest) {
     }
     if (msg === 'NOT_FOUND') {
       return NextResponse.json({ error: 'Repository not found' }, { status: 404 });
+    }
+    const stale = getStaleCache(cacheKey);
+    if (stale) {
+      return NextResponse.json({ data: stale.data, cached: true, stale: true });
     }
     return NextResponse.json({ error: 'Failed to fetch commits' }, { status: 500 });
   }

@@ -332,18 +332,18 @@ export async function fetchOrganization(): Promise<GitHubOrg | GitHubUser> {
 
 export async function fetchOrgMembers(): Promise<GitHubMember[]> {
   try {
-    // Try org members endpoint
+    // Fetch all members — authenticated requests return private members too
     const members = await githubFetch<GitHubMember[]>(
-      `/orgs/${GITHUB_USERNAME}/members?per_page=30`
+      `/orgs/${GITHUB_USERNAME}/members?per_page=100&role=all`
     );
 
     if (!members || members.length === 0) {
       throw new Error('empty');
     }
 
-    // Enrich with full profiles (cap at 20 to avoid rate limits)
+    // Enrich each member's profile in parallel (cap at 30)
     const enriched = await Promise.allSettled(
-      members.slice(0, 20).map(async (m) => {
+      members.slice(0, 30).map(async (m) => {
         try {
           const profile = await githubFetch<GitHubUser>(`/users/${m.login}`);
           return {
@@ -390,18 +390,45 @@ export async function fetchOrgMembers(): Promise<GitHubMember[]> {
 // ─── Events ───────────────────────────────────────────────────────────────
 
 export async function fetchPublicEvents(perPage = 60): Promise<GitHubEvent[]> {
-  const page1 = await githubFetch<GitHubEvent[]>(
-    `/users/${GITHUB_USERNAME}/events/public?per_page=30&page=1`
-  ).catch(() => []);
+  // Try both org and user event endpoints; works for both account types.
+  // GitHub orgs use /orgs/{login}/events; personal accounts use /users/{login}/events/public.
+  const [orgPage1, userPage1] = await Promise.allSettled([
+    githubFetch<GitHubEvent[]>(`/orgs/${GITHUB_USERNAME}/events?per_page=30&page=1`),
+    githubFetch<GitHubEvent[]>(`/users/${GITHUB_USERNAME}/events/public?per_page=30&page=1`),
+  ]);
 
-  let page2: GitHubEvent[] = [];
-  if (perPage > 30) {
-    page2 = await githubFetch<GitHubEvent[]>(
-      `/users/${GITHUB_USERNAME}/events/public?per_page=30&page=2`
-    ).catch(() => []);
+  const e1 = orgPage1.status === 'fulfilled' ? orgPage1.value : [];
+  const e2 = userPage1.status === 'fulfilled' ? userPage1.value : [];
+
+  // Merge + deduplicate by event id
+  const seen = new Set<string>();
+  const merged: GitHubEvent[] = [];
+  for (const ev of [...e1, ...e2]) {
+    if (!seen.has(ev.id)) {
+      seen.add(ev.id);
+      merged.push(ev);
+    }
   }
 
-  return [...page1, ...page2].slice(0, perPage);
+  // If we have fewer than half of perPage, fetch page 2 of whichever returned more
+  if (merged.length < perPage / 2 && perPage > 30) {
+    const usePrimary = e1.length >= e2.length ? 'org' : 'user';
+    const page2 = await githubFetch<GitHubEvent[]>(
+      usePrimary === 'org'
+        ? `/orgs/${GITHUB_USERNAME}/events?per_page=30&page=2`
+        : `/users/${GITHUB_USERNAME}/events/public?per_page=30&page=2`
+    ).catch(() => [] as GitHubEvent[]);
+    for (const ev of page2) {
+      if (!seen.has(ev.id)) {
+        seen.add(ev.id);
+        merged.push(ev);
+      }
+    }
+  }
+
+  return merged
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, perPage);
 }
 
 export function normalizeEvent(event: GitHubEvent): NormalizedActivity {

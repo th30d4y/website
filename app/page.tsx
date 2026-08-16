@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import type { GitHubUser, GitHubRepository } from '@/types/github';
 import type { LanguageStat } from '@/types/github';
 import Hero from '@/components/Hero';
@@ -11,6 +11,9 @@ import ContributionGraph from '@/components/ContributionGraph';
 import LanguageStats from '@/components/LanguageStats';
 import WhatIBuild from '@/components/WhatIBuild';
 import Terminal from '@/components/Terminal';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
+
+const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 
 export default function HomePage() {
   const [user, setUser] = useState<GitHubUser | null>(null);
@@ -27,7 +30,7 @@ export default function HomePage() {
       const json = await res.json();
       if (json.data) setUser(json.data);
     } catch {
-      // graceful — show partial UI
+      // graceful
     } finally {
       setLoadingUser(false);
     }
@@ -49,10 +52,9 @@ export default function HomePage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchUser();
-    fetchRepos();
-  }, [fetchUser, fetchRepos]);
+  // Auto-refresh every 5 minutes
+  useAutoRefresh(fetchUser, REFRESH_MS);
+  useAutoRefresh(fetchRepos, REFRESH_MS);
 
   // Filter repos by language when langFilter is set
   const filteredRepos = langFilter

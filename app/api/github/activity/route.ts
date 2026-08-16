@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchRepositories, fetchCommits, truncateMessage } from '@/lib/github';
-import { getCache, setCache, TTL } from '@/lib/cache';
+import { getCache, setCache, getStaleCache, TTL } from '@/lib/cache';
 import type { GitHubRepository } from '@/types/github';
 
 export interface ActivityItem {
@@ -14,8 +14,10 @@ export interface ActivityItem {
   url: string;
 }
 
+const cacheKey = 'activity';
+
 export async function GET() {
-  const cached = getCache<ActivityItem[]>('activity');
+  const cached = getCache<ActivityItem[]>(cacheKey);
   if (cached) {
     return NextResponse.json({ data: cached, cached: true });
   }
@@ -23,7 +25,6 @@ export async function GET() {
   try {
     const repos = await fetchRepositories();
 
-    // Get top repos by recent push date (non-archived, non-fork)
     const activeRepos = repos
       .filter((r: GitHubRepository) => !r.archived)
       .sort(
@@ -52,21 +53,28 @@ export async function GET() {
       })
     );
 
-    // Sort by date descending
     allActivity.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 
     const recent = allActivity.slice(0, 30);
-    setCache('activity', recent, TTL.COMMITS);
+    setCache(cacheKey, recent, TTL.COMMITS);
     return NextResponse.json({ data: recent, cached: false });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     if (msg === 'RATE_LIMITED') {
+      const stale = getStaleCache(cacheKey);
+      if (stale) {
+        return NextResponse.json({ data: stale.data, cached: true, stale: true, staleAgeMs: stale.ageMs });
+      }
       return NextResponse.json(
         { error: 'GitHub API rate limit reached', rateLimited: true },
         { status: 429 }
       );
+    }
+    const stale = getStaleCache(cacheKey);
+    if (stale) {
+      return NextResponse.json({ data: stale.data, cached: true, stale: true });
     }
     return NextResponse.json(
       { error: 'Failed to fetch activity' },
