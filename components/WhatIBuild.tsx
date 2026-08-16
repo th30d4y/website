@@ -56,9 +56,13 @@ const categories = [
   },
 ];
 
+import { useScrollReveal } from '@/lib/useScrollReveal';
+
 export default function WhatIBuild() {
+  const sectionRef = useScrollReveal<HTMLElement>();
+  const gridRef = useScrollReveal<HTMLDivElement>(0.05);
   return (
-    <section id="about" aria-label="What I Build" className="section">
+    <section ref={sectionRef} id="about" aria-label="What I Build" className="section reveal-up">
       <div className="section__container">
         <div className="section__eyebrow">
           <span className="section-label">06 / Focus</span>
@@ -68,7 +72,7 @@ export default function WhatIBuild() {
           Engineering work spanning security, systems, web, and open source.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 12 }} className="focus-grid">
+        <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 12 }} className="focus-grid stagger">
           {categories.map((cat) => (
             <div key={cat.title} className="card" style={{ padding: '20px 22px' }}>
               <div style={{ color: 'var(--text-4)', marginBottom: 14, transition: 'color 0.2s' }} className="focus-icon">

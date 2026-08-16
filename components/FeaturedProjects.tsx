@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { GitHubRepository } from '@/types/github';
 import { getFeaturedRepos } from '@/lib/github';
 import ProjectCard from './ProjectCard';
+import { useScrollReveal } from '@/lib/useScrollReveal';
 
 interface FeaturedProjectsProps {
   repos: GitHubRepository[];
@@ -33,9 +34,11 @@ function SkeletonCard() {
 
 export default function FeaturedProjects({ repos, loading }: FeaturedProjectsProps) {
   const featured = getFeaturedRepos(repos, 6);
+  const sectionRef = useScrollReveal<HTMLElement>();
+  const gridRef = useScrollReveal<HTMLDivElement>(0.05);
 
   return (
-    <section id="featured" aria-label="Featured projects" className="section">
+    <section ref={sectionRef} id="featured" aria-label="Featured projects" className="section reveal-up">
       <div className="section__container">
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40 }}>
           <div>
@@ -69,11 +72,11 @@ export default function FeaturedProjects({ repos, loading }: FeaturedProjectsPro
           </Link>
         </div>
 
-        <div style={{
+        <div ref={gridRef} style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(1, 1fr)',
           gap: 12
-        }} className="projects-grid">
+        }} className="projects-grid stagger">
           {loading
             ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
             : featured.length > 0

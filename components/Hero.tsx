@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import type { GitHubUser } from '@/types/github';
 
@@ -17,11 +17,45 @@ const GithubIcon = () => (
 
 export default function Hero({ user, loading }: HeroProps) {
   const [visible, setVisible] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const greenRef = useRef<HTMLDivElement>(null);
+  const cyanRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef(0);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 80);
     return () => clearTimeout(t);
   }, []);
+
+  // Mouse parallax on the background elements
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      const dx = (e.clientX - cx) / cx; // -1 to 1
+      const dy = (e.clientY - cy) / cy;
+
+      if (gridRef.current) {
+        gridRef.current.style.transform = `translate(${dx * 8}px, ${dy * 8}px)`;
+      }
+      if (greenRef.current) {
+        greenRef.current.style.transform = `translateX(-50%) translate(${dx * 20}px, ${dy * 14}px)`;
+      }
+      if (cyanRef.current) {
+        cyanRef.current.style.transform = `translate(${dx * -14}px, ${dy * 10}px)`;
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [onMouseMove]);
 
   const stats = user
     ? [
@@ -37,12 +71,15 @@ export default function Hero({ user, loading }: HeroProps) {
       className="hero-section"
       aria-label="Introduction"
     >
-      {/* Subtle grid */}
-      <div className="hero-grid" aria-hidden="true" />
+      {/* Subtle grid — moves with mouse */}
+      <div ref={gridRef} className="hero-grid" aria-hidden="true"
+        style={{ transition: 'transform 0.8s cubic-bezier(0.16,1,0.3,1)', willChange: 'transform' }} />
 
-      {/* Radial atmosphere glows */}
-      <div className="hero-glow-green" aria-hidden="true" />
-      <div className="hero-glow-cyan" aria-hidden="true" />
+      {/* Radial atmosphere glows — parallax */}
+      <div ref={greenRef} className="hero-glow-green" aria-hidden="true"
+        style={{ transition: 'transform 1.2s cubic-bezier(0.16,1,0.3,1)', willChange: 'transform' }} />
+      <div ref={cyanRef} className="hero-glow-cyan" aria-hidden="true"
+        style={{ transition: 'transform 1s cubic-bezier(0.16,1,0.3,1)', willChange: 'transform' }} />
 
       {/* Main content — centered column */}
       <div
@@ -140,15 +177,15 @@ export default function Hero({ user, loading }: HeroProps) {
             href="https://github.com/th30d4y/"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn--primary"
+            className="btn btn--primary btn-magnetic"
           >
             <GithubIcon />
             View GitHub ↗
           </a>
-          <a href="/projects" className="btn btn--secondary">
+          <a href="/projects" className="btn btn--secondary btn-magnetic">
             Explore Projects
           </a>
-          <a href="/activity" className="btn btn--ghost">
+          <a href="/activity" className="btn btn--ghost btn-magnetic">
             View Activity
           </a>
         </div>

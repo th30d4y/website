@@ -9,6 +9,21 @@ interface ProjectCardProps {
   featured?: boolean;
 }
 
+function tilt(e: React.MouseEvent<HTMLAnchorElement>) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width  - 0.5; // -0.5 to 0.5
+  const y = (e.clientY - r.top)  / r.height - 0.5;
+  e.currentTarget.style.transform =
+    `perspective(700px) rotateX(${-y * 6}deg) rotateY(${x * 6}deg) translateY(-3px)`;
+  e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.35)';
+}
+
+function resetTilt(e: React.MouseEvent<HTMLAnchorElement>) {
+  e.currentTarget.style.transform = 'perspective(700px) rotateX(0) rotateY(0) translateY(0)';
+  e.currentTarget.style.boxShadow = 'none';
+}
+
 export default function ProjectCard({ repo }: ProjectCardProps) {
   const isActive = !repo.archived;
   const langColor = repo.language ? getLanguageColor(repo.language) : '#52525c';
@@ -16,8 +31,10 @@ export default function ProjectCard({ repo }: ProjectCardProps) {
   return (
     <Link
       href={`/projects/${repo.name}`}
-      className="project-card"
+      className="project-card card-tilt"
       aria-label={`View ${repo.name} repository`}
+      onMouseMove={tilt}
+      onMouseLeave={resetTilt}
     >
       {/* Header */}
       <div className="project-card__header">

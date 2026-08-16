@@ -1,6 +1,7 @@
 'use client';
 
 import type { LanguageStat } from '@/types/github';
+import { useScrollReveal } from '@/lib/useScrollReveal';
 
 interface LanguageStatsProps {
   languages: LanguageStat[];
@@ -16,9 +17,10 @@ export default function LanguageStats({
   activeFilter,
 }: LanguageStatsProps) {
   const displayLanguages = languages.slice(0, 8);
+  const sectionRef = useScrollReveal<HTMLElement>();
 
   return (
-    <section id="languages" aria-label="Language Statistics" className="section">
+    <section ref={sectionRef} id="languages" aria-label="Language Statistics" className="section reveal-up">
       <div className="section__container">
         <div className="section__eyebrow">
           <span className="live-dot" aria-hidden="true" />

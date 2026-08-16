@@ -885,3 +885,103 @@ a.hero-meta__item:hover { color: var(--text-2); }
   }
   .hero-content--hidden { opacity: 1; transform: none; }
 }
+
+/* ─── Animations & Motion ────────────────────────────────────────────────── */
+
+/* Scroll reveal — attach .reveal-up to any element */
+.reveal-up {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
+              transform 0.7s cubic-bezier(0.16,1,0.3,1);
+}
+.reveal-up.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger delays for grid children */
+.stagger > *          { opacity: 0; transform: translateY(20px); transition: opacity 0.55s cubic-bezier(0.16,1,0.3,1), transform 0.55s cubic-bezier(0.16,1,0.3,1); }
+.stagger.is-visible > *:nth-child(1)  { opacity: 1; transform: none; transition-delay: 0.00s; }
+.stagger.is-visible > *:nth-child(2)  { opacity: 1; transform: none; transition-delay: 0.06s; }
+.stagger.is-visible > *:nth-child(3)  { opacity: 1; transform: none; transition-delay: 0.12s; }
+.stagger.is-visible > *:nth-child(4)  { opacity: 1; transform: none; transition-delay: 0.18s; }
+.stagger.is-visible > *:nth-child(5)  { opacity: 1; transform: none; transition-delay: 0.24s; }
+.stagger.is-visible > *:nth-child(6)  { opacity: 1; transform: none; transition-delay: 0.30s; }
+.stagger.is-visible > *:nth-child(n+7){ opacity: 1; transform: none; transition-delay: 0.36s; }
+
+/* Floating gentle — hero badge */
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-5px); }
+}
+.float-gentle {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+/* Hero name gradient sweep */
+@keyframes gradient-sweep {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.hero-name {
+  background-size: 200% auto !important;
+  animation: gradient-sweep 6s ease infinite;
+}
+
+/* Hero badge float */
+.hero-badge {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+/* Glow pulse on the availability dot */
+@keyframes glow-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,232,122,0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(0,232,122,0); }
+}
+.hero-badge__dot {
+  animation: pulse-dot 2s ease-in-out infinite, glow-ring 2s ease-in-out infinite !important;
+}
+
+/* Card 3D tilt — controlled via JS inline style */
+.card-tilt {
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out,
+              border-color 0.18s ease, background 0.18s ease;
+}
+.card-tilt:not(:hover) {
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1),
+              box-shadow 0.4s cubic-bezier(0.16,1,0.3,1),
+              border-color 0.18s ease, background 0.18s ease;
+}
+
+/* Magnetic button — slight shift toward cursor */
+.btn-magnetic {
+  transition: transform 0.15s cubic-bezier(0.16,1,0.3,1),
+              background 0.18s ease, border-color 0.18s ease,
+              box-shadow 0.18s ease;
+  will-change: transform;
+}
+
+/* Scroll-reveal delay helpers */
+.reveal-delay-1 { transition-delay: 0.1s !important; }
+.reveal-delay-2 { transition-delay: 0.2s !important; }
+.reveal-delay-3 { transition-delay: 0.3s !important; }
+.reveal-delay-4 { transition-delay: 0.4s !important; }
+
+/* Page enter — whole page fades + rises */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.5s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+/* Glimmer sweep on stat numbers */
+@keyframes glimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}

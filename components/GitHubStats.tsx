@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { GitHubUser, GitHubRepository } from '@/types/github';
+import { useScrollReveal } from '@/lib/useScrollReveal';
 
 interface StatsProps {
   user: GitHubUser | null;
@@ -52,6 +53,8 @@ interface StatCard {
 }
 
 export default function GitHubStats({ user, repos, loading }: StatsProps) {
+  const sectionRef = useScrollReveal<HTMLElement>();
+  const gridRef = useScrollReveal<HTMLDivElement>(0.05);
   const totalStars = repos.reduce((sum, r) => sum + r.stargazers_count, 0);
   const totalForks = repos.reduce((sum, r) => sum + r.forks_count, 0);
   const totalIssues = repos.reduce((sum, r) => sum + r.open_issues_count, 0);
@@ -117,7 +120,7 @@ export default function GitHubStats({ user, repos, loading }: StatsProps) {
   ];
 
   return (
-    <section id="stats" aria-label="GitHub Statistics" className="section">
+    <section ref={sectionRef} id="stats" aria-label="GitHub Statistics" className="section reveal-up">
       <div className="section__container">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 40, gap: 16 }}>
           <div>
@@ -139,13 +142,13 @@ export default function GitHubStats({ user, repos, loading }: StatsProps) {
         </div>
 
         {/* Stat cards */}
-        <div style={{
+        <div ref={gridRef} style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(2, 1fr)',
           gap: 12,
           marginBottom: 16
         }}
-          className="stats-grid"
+          className="stats-grid stagger"
         >
           {stats.map((stat) => (
             <div key={stat.label} className={`stat-card ${stat.accent ? 'stat-card--accent' : ''}`}>

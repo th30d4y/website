@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import type { ActivityItem } from '@/app/api/github/activity/route';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import LiveBadge from '@/components/LiveBadge';
+import { useScrollReveal } from '@/lib/useScrollReveal';
 
 interface DayData {
   date: string;
@@ -54,6 +55,7 @@ export default function ContributionGraph() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const sectionRevealRef = useScrollReveal<HTMLElement>();
 
   const fetchData = useCallback(async (force = false) => {
     setLoading(true);
@@ -104,7 +106,7 @@ export default function ContributionGraph() {
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <section id="contributions" aria-label="Contribution Graph" className="section">
+    <section id="contributions" aria-label="Contribution Graph" className="section reveal-up" ref={sectionRevealRef}>
       <div className="section__container">
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40, flexWrap: 'wrap', gap: 12 }}>
           <div>

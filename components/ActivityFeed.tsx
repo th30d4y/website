@@ -5,6 +5,7 @@ import type { ActivityItem } from '@/app/api/github/activity/route';
 import { formatRelativeTime } from '@/lib/github';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import LiveBadge from '@/components/LiveBadge';
+import { useScrollReveal } from '@/lib/useScrollReveal';
 
 const REFRESH_MS = 3 * 60 * 1000; // 3 minutes
 
@@ -32,6 +33,7 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(initialData ? new Date() : null);
+  const sectionRef = useScrollReveal<HTMLElement>();
 
   const fetchActivity = useCallback(async (force = false) => {
     setLoading(true);
@@ -57,7 +59,7 @@ export default function ActivityFeed({ initialData }: ActivityFeedProps) {
   const displayItems = items.slice(0, 20);
 
   return (
-    <section id="activity" aria-label="Latest GitHub Activity" className="section">
+    <section ref={sectionRef} id="activity" aria-label="Latest GitHub Activity" className="section reveal-up">
       <div className="section__container">
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40, gap: 16, flexWrap: 'wrap' }}>
