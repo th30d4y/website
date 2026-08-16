@@ -3,6 +3,7 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import MouseGlow from '@/components/MouseGlow';
+import Scanline from '@/components/Scanline';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://0d4y.dev'),
@@ -70,6 +71,7 @@ export default function RootLayout({
       </head>
       <body style={{ background: 'var(--bg)', color: 'var(--text)' }}>
         <MouseGlow />
+        <Scanline />
         <Navbar />
         <main>{children}</main>
         <Footer />

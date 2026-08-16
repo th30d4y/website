@@ -74,7 +74,13 @@ export default function WhatIBuild() {
 
         <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 12 }} className="focus-grid stagger">
           {categories.map((cat) => (
-            <div key={cat.title} className="card" style={{ padding: '20px 22px' }}>
+            <div key={cat.title} className="card spotlight-card border-trace" style={{ padding: '20px 22px' }}
+              onMouseMove={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                e.currentTarget.style.setProperty('--card-x', `${e.clientX - r.left}px`);
+                e.currentTarget.style.setProperty('--card-y', `${e.clientY - r.top}px`);
+              }}
+            >
               <div style={{ color: 'var(--text-4)', marginBottom: 14, transition: 'color 0.2s' }} className="focus-icon">
                 {cat.icon}
               </div>

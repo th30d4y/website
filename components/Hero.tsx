@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import type { GitHubUser } from '@/types/github';
+import Particles from '@/components/Particles';
 
 interface HeroProps {
   user: GitHubUser | null;
@@ -81,6 +82,9 @@ export default function Hero({ user, loading }: HeroProps) {
       <div ref={cyanRef} className="hero-glow-cyan" aria-hidden="true"
         style={{ transition: 'transform 1s cubic-bezier(0.16,1,0.3,1)', willChange: 'transform' }} />
 
+      {/* Floating particles */}
+      <Particles count={14} />
+
       {/* Main content — centered column */}
       <div
         className={`hero-content ${visible ? 'hero-content--visible' : 'hero-content--hidden'}`}
@@ -116,7 +120,7 @@ export default function Hero({ user, loading }: HeroProps) {
         </div>
 
         {/* Name */}
-        <h1 className="hero-name" aria-label="0d4y">
+        <h1 className="hero-name glitch" data-text="0d4y" aria-label="0d4y">
           0d4y
         </h1>
 
@@ -177,12 +181,23 @@ export default function Hero({ user, loading }: HeroProps) {
             href="https://github.com/th30d4y/"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn--primary btn-magnetic"
+            className="btn btn--primary btn-magnetic ripple-wrap spotlight-card"
+            onMouseMove={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              e.currentTarget.style.setProperty('--card-x', `${e.clientX - r.left}px`);
+              e.currentTarget.style.setProperty('--card-y', `${e.clientY - r.top}px`);
+            }}
           >
             <GithubIcon />
             View GitHub ↗
           </a>
-          <a href="/projects" className="btn btn--secondary btn-magnetic">
+          <a href="/projects" className="btn btn--secondary btn-magnetic spotlight-card ripple-wrap"
+            onMouseMove={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              e.currentTarget.style.setProperty('--card-x', `${e.clientX - r.left}px`);
+              e.currentTarget.style.setProperty('--card-y', `${e.clientY - r.top}px`);
+            }}
+          >
             Explore Projects
           </a>
           <a href="/activity" className="btn btn--ghost btn-magnetic">

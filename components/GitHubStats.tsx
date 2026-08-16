@@ -151,7 +151,15 @@ export default function GitHubStats({ user, repos, loading }: StatsProps) {
           className="stats-grid stagger"
         >
           {stats.map((stat) => (
-            <div key={stat.label} className={`stat-card ${stat.accent ? 'stat-card--accent' : ''}`}>
+            <div
+              key={stat.label}
+              className={`stat-card ${stat.accent ? 'stat-card--accent animated-border spotlight-card' : 'spotlight-card'}`}
+              onMouseMove={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                e.currentTarget.style.setProperty('--card-x', `${e.clientX - r.left}px`);
+                e.currentTarget.style.setProperty('--card-y', `${e.clientY - r.top}px`);
+              }}
+            >
               <div style={{ color: stat.accent ? 'var(--accent)' : 'var(--text-3)', marginBottom: 12 }}>
                 {stat.icon}
               </div>

@@ -31,9 +31,14 @@ export default function ProjectCard({ repo }: ProjectCardProps) {
   return (
     <Link
       href={`/projects/${repo.name}`}
-      className="project-card card-tilt"
+      className="project-card card-tilt spotlight-card border-trace"
       aria-label={`View ${repo.name} repository`}
-      onMouseMove={tilt}
+      onMouseMove={(e) => {
+        tilt(e);
+        const r = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty('--card-x', `${e.clientX - r.left}px`);
+        e.currentTarget.style.setProperty('--card-y', `${e.clientY - r.top}px`);
+      }}
       onMouseLeave={resetTilt}
     >
       {/* Header */}

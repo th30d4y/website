@@ -73,8 +73,16 @@ export default function Navbar() {
                 key={href}
                 href={href}
                 role="listitem"
-                className={`navbar__link ${isActive ? 'navbar__link--active' : ''}`}
+                className={`navbar__link nav-magnetic ${isActive ? 'navbar__link--active' : ''}`}
                 aria-current={isActive ? 'page' : undefined}
+                onMouseMove={(e) => {
+                  if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const x = (e.clientX - r.left - r.width / 2) * 0.25;
+                  const y = (e.clientY - r.top - r.height / 2) * 0.25;
+                  e.currentTarget.style.transform = `translate(${x}px, ${y}px)`;
+                }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
               >
                 {label}
               </Link>
