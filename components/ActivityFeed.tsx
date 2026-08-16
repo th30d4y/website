@@ -1,0 +1,185 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import type { ActivityItem } from '@/app/api/github/activity/route';
+import { formatRelativeTime } from '@/lib/github';
+
+interface ActivityFeedProps {
+  initialData?: ActivityItem[];
+}
+
+function groupByDate(items: ActivityItem[]): Map<string, ActivityItem[]> {
+  const groups = new Map<string, ActivityItem[]>();
+  for (const item of items) {
+    const date = new Date(item.date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const existing = groups.get(date) || [];
+    existing.push(item);
+    groups.set(date, existing);
+  }
+  return groups;
+}
+
+export default function ActivityFeed({ initialData }: ActivityFeedProps) {
+  const [items, setItems] = useState<ActivityItem[]>(initialData || []);
+  const [loading, setLoading] = useState(!initialData);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const fetchActivity = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/github/activity');
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      setItems(json.data || []);
+      setLastUpdated(new Date());
+    } catch {
+      setError('GitHub activity is temporarily unavailable.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!initialData) {
+      fetchActivity();
+    } else {
+      setLastUpdated(new Date());
+    }
+  }, [initialData, fetchActivity]);
+
+  const groups = groupByDate(items);
+  const displayItems = items.slice(0, 20);
+
+  return (
+    <section id="activity" aria-label="Latest GitHub Activity" className="section">
+      <div className="section__container">
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40, gap: 16 }}>
+          <div>
+            <div className="section__eyebrow">
+              <span className="live-dot" aria-hidden="true" />
+              <span className="section-label">03 / Activity</span>
+            </div>
+            <h2 className="section__heading">Latest Commits</h2>
+            <p className="section__sub" style={{ marginBottom: 0 }}>Real-time commit feed across repositories</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-3)', flexShrink: 0 }}>
+            {lastUpdated && <span>{formatRelativeTime(lastUpdated.toISOString())}</span>}
+            <button
+              onClick={fetchActivity}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 0.15s', fontFamily: 'var(--font-mono)', fontSize: '0.6875rem' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
+              aria-label="Refresh activity"
+            >
+              <span style={{ display: 'inline-block', transition: 'transform 0.3s' }}>↻</span>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div style={{ textAlign: 'center', padding: '48px 0', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)' }}>
+            <p style={{ color: 'var(--text-3)', fontSize: '0.875rem', marginBottom: 16 }}>{error}</p>
+            <button
+              onClick={fetchActivity}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {loading && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} aria-label="Loading activity">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
+                  <div className="skeleton" style={{ width: 8, height: 8, borderRadius: '50%' }} />
+                  <div style={{ width: 1, flex: 1, background: 'var(--bg-raised)', minHeight: 40, marginTop: 4 }} />
+                </div>
+                <div style={{ flex: 1, paddingBottom: 16 }}>
+                  <div className="skeleton" style={{ height: 13, width: '75%', borderRadius: 3, marginBottom: 8 }} />
+                  <div className="skeleton" style={{ height: 11, width: '45%', borderRadius: 3 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && !error && items.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '48px 0', fontFamily: 'var(--font-mono)', fontSize: '0.875rem', color: 'var(--text-4)' }}>
+            No recent activity found.
+          </div>
+        )}
+
+        {!loading && !error && displayItems.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 11, top: 0, bottom: 0, width: 1, background: 'var(--bg-raised)' }} aria-hidden="true" />
+
+            <div>
+              {Array.from(groups.entries()).map(([date, dateItems]) => (
+                <div key={date}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginBottom: 14, marginTop: 8 }}>
+                    <div style={{ position: 'absolute', left: 0, width: 24, height: 24, borderRadius: '50%', background: 'var(--bg-raised)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }} aria-hidden="true">
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
+                    </div>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-3)', paddingLeft: 40, fontWeight: 500, letterSpacing: '0.04em' }}>{date}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 40, marginBottom: 20 }}>
+                    {dateItems.map((item) => (
+                      <div key={`${item.repo}-${item.sha}`} className="timeline-entry">
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                          <p style={{ fontSize: '0.875rem', color: 'var(--text)', fontWeight: 500, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {item.message}
+                          </p>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--accent)', textDecoration: 'none', flexShrink: 0, transition: 'opacity 0.15s' }}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`View commit ${item.sha}`}
+                          >
+                            {item.sha}
+                          </a>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 12px', fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--text-4)' }}>
+                          <a href={item.repoUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-3)', textDecoration: 'none', transition: 'color 0.15s' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
+                            onClick={(e) => e.stopPropagation()}
+                          >{item.repo}</a>
+                          <span>{item.author}</span>
+                          <span>{formatRelativeTime(item.date)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!loading && items.length > 20 && (
+          <div style={{ textAlign: 'center', marginTop: 24 }}>
+            <a href="/activity" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-3)', textDecoration: 'none', transition: 'color 0.15s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
+            >
+              View all activity →
+            </a>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

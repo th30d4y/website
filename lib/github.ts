@@ -1,0 +1,316 @@
+import type {
+  GitHubUser,
+  GitHubRepository,
+  GitHubCommit,
+  GitHubContributor,
+  GitHubLanguages,
+  GitHubIssue,
+  GitHubPullRequest,
+  GitHubTree,
+  LanguageStat,
+} from '@/types/github';
+
+export const GITHUB_USERNAME = 'th30d4y';
+const GITHUB_API = 'https://api.github.com';
+
+// Language color map
+const LANGUAGE_COLORS: Record<string, string> = {
+  JavaScript: '#f7df1e',
+  TypeScript: '#3178c6',
+  Python: '#3572A5',
+  Rust: '#dea584',
+  Go: '#00ADD8',
+  C: '#555555',
+  'C++': '#f34b7d',
+  'C#': '#178600',
+  Java: '#b07219',
+  Ruby: '#701516',
+  PHP: '#4F5D95',
+  Shell: '#89e051',
+  HTML: '#e34c26',
+  CSS: '#563d7c',
+  SCSS: '#c6538c',
+  Kotlin: '#A97BFF',
+  Swift: '#ffac45',
+  Dart: '#00B4AB',
+  Lua: '#000080',
+  Vim: '#199f4b',
+  Makefile: '#427819',
+  Dockerfile: '#384d54',
+  Nix: '#7e7eff',
+  Zig: '#ec915c',
+};
+
+export function getLanguageColor(language: string): string {
+  return LANGUAGE_COLORS[language] || '#8b949e';
+}
+
+function getHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': '0d4y-website',
+  };
+  const token = process.env.GITHUB_TOKEN;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function githubFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${GITHUB_API}${path}`, {
+    headers: getHeaders(),
+    next: { revalidate: 60 },
+  });
+
+  if (!res.ok) {
+    if (res.status === 403) {
+      const remaining = res.headers.get('x-ratelimit-remaining');
+      if (remaining === '0') {
+        throw new Error('RATE_LIMITED');
+      }
+    }
+    if (res.status === 404) {
+      throw new Error('NOT_FOUND');
+    }
+    throw new Error(`GitHub API error: ${res.status}`);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+export async function fetchUser(): Promise<GitHubUser> {
+  return githubFetch<GitHubUser>(`/users/${GITHUB_USERNAME}`);
+}
+
+export async function fetchRepositories(): Promise<GitHubRepository[]> {
+  const perPage = 100;
+  let page = 1;
+  const allRepos: GitHubRepository[] = [];
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const repos = await githubFetch<GitHubRepository[]>(
+      `/users/${GITHUB_USERNAME}/repos?per_page=${perPage}&page=${page}&sort=pushed&direction=desc`
+    );
+    allRepos.push(...repos);
+    if (repos.length < perPage) break;
+    page++;
+    if (page > 10) break; // safety cap at 1000 repos
+  }
+
+  return allRepos;
+}
+
+export async function fetchRepository(name: string): Promise<GitHubRepository> {
+  return githubFetch<GitHubRepository>(`/repos/${GITHUB_USERNAME}/${name}`);
+}
+
+export async function fetchCommits(
+  repoName: string,
+  perPage = 30
+): Promise<GitHubCommit[]> {
+  try {
+    return await githubFetch<GitHubCommit[]>(
+      `/repos/${GITHUB_USERNAME}/${repoName}/commits?per_page=${perPage}`
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchCommit(
+  repoName: string,
+  sha: string
+): Promise<GitHubCommit> {
+  return githubFetch<GitHubCommit>(
+    `/repos/${GITHUB_USERNAME}/${repoName}/commits/${sha}`
+  );
+}
+
+export async function fetchContributors(
+  repoName: string
+): Promise<GitHubContributor[]> {
+  try {
+    return await githubFetch<GitHubContributor[]>(
+      `/repos/${GITHUB_USERNAME}/${repoName}/contributors?per_page=30&anon=true`
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchLanguages(
+  repoName: string
+): Promise<GitHubLanguages> {
+  try {
+    return await githubFetch<GitHubLanguages>(
+      `/repos/${GITHUB_USERNAME}/${repoName}/languages`
+    );
+  } catch {
+    return {};
+  }
+}
+
+export async function fetchReadme(repoName: string): Promise<string | null> {
+  try {
+    const data = await githubFetch<{ content: string; encoding: string }>(
+      `/repos/${GITHUB_USERNAME}/${repoName}/readme`
+    );
+    if (data.encoding === 'base64') {
+      // Decode base64 content
+      const decoded = Buffer.from(data.content.replace(/\n/g, ''), 'base64').toString('utf-8');
+      return decoded;
+    }
+    return data.content;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchTree(
+  repoName: string,
+  branch = 'main'
+): Promise<GitHubTree | null> {
+  try {
+    return await githubFetch<GitHubTree>(
+      `/repos/${GITHUB_USERNAME}/${repoName}/git/trees/${branch}?recursive=0`
+    );
+  } catch {
+    // Try default branch
+    try {
+      const repo = await fetchRepository(repoName);
+      return await githubFetch<GitHubTree>(
+        `/repos/${GITHUB_USERNAME}/${repoName}/git/trees/${repo.default_branch}?recursive=0`
+      );
+    } catch {
+      return null;
+    }
+  }
+}
+
+export async function fetchIssues(
+  repoName: string,
+  state: 'open' | 'closed' | 'all' = 'open'
+): Promise<GitHubIssue[]> {
+  try {
+    const issues = await githubFetch<GitHubIssue[]>(
+      `/repos/${GITHUB_USERNAME}/${repoName}/issues?state=${state}&per_page=20&sort=created&direction=desc`
+    );
+    // Filter out pull requests (GitHub returns PRs as issues)
+    return issues.filter((i) => !i.pull_request);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchPullRequests(
+  repoName: string,
+  state: 'open' | 'closed' | 'all' = 'open'
+): Promise<GitHubPullRequest[]> {
+  try {
+    return await githubFetch<GitHubPullRequest[]>(
+      `/repos/${GITHUB_USERNAME}/${repoName}/pulls?state=${state}&per_page=20&sort=created&direction=desc`
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAggregatedLanguages(
+  repos: GitHubRepository[]
+): Promise<LanguageStat[]> {
+  const totals: Record<string, number> = {};
+
+  const languageFetches = repos
+    .filter((r) => !r.archived && r.language)
+    .slice(0, 20) // Limit to top 20 repos to avoid rate limits
+    .map(async (r) => {
+      const langs = await fetchLanguages(r.name);
+      for (const [lang, bytes] of Object.entries(langs)) {
+        totals[lang] = (totals[lang] || 0) + bytes;
+      }
+    });
+
+  await Promise.allSettled(languageFetches);
+
+  const total = Object.values(totals).reduce((a, b) => a + b, 0);
+  if (total === 0) return [];
+
+  return Object.entries(totals)
+    .map(([language, bytes]) => ({
+      language,
+      bytes,
+      percentage: Math.round((bytes / total) * 1000) / 10,
+      color: getLanguageColor(language),
+    }))
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, 10);
+}
+
+// Scoring for featured projects
+export function scoreRepository(repo: GitHubRepository): number {
+  const now = Date.now();
+  const pushedAt = new Date(repo.pushed_at).getTime();
+  const daysSincePush = (now - pushedAt) / (1000 * 60 * 60 * 24);
+  const recencyScore = Math.max(0, 100 - daysSincePush * 2);
+
+  return (
+    repo.stargazers_count * 5 +
+    repo.forks_count * 3 +
+    repo.watchers_count * 2 +
+    recencyScore +
+    (repo.description ? 10 : 0) +
+    (repo.topics?.length || 0) * 2 +
+    (repo.homepage ? 5 : 0)
+  );
+}
+
+export function getFeaturedRepos(
+  repos: GitHubRepository[],
+  count = 6
+): GitHubRepository[] {
+  return repos
+    .filter((r) => !r.archived && !r.fork)
+    .sort((a, b) => scoreRepository(b) - scoreRepository(a))
+    .slice(0, count);
+}
+
+export function formatDate(date: string): string {
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+export function formatRelativeTime(date: string): string {
+  const now = Date.now();
+  const then = new Date(date).getTime();
+  const diffMs = now - then;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffMonths = Math.floor(diffDays / 30);
+  const diffYears = Math.floor(diffDays / 365);
+
+  if (diffSecs < 60) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 30) return `${diffDays}d ago`;
+  if (diffMonths < 12) return `${diffMonths}mo ago`;
+  return `${diffYears}y ago`;
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function truncateMessage(msg: string, len = 80): string {
+  const firstLine = msg.split('\n')[0];
+  if (firstLine.length <= len) return firstLine;
+  return firstLine.slice(0, len) + '…';
+}
