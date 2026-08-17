@@ -17,6 +17,7 @@ const COMMANDS: Record<string, () => string | string[]> = {
     '  projects — view projects',
     '  status   — current status',
     '  contact  — contact info',
+    '  aur      — AUR package',
     '  clear    — clear terminal',
   ],
   about: () => [
@@ -33,6 +34,7 @@ const COMMANDS: Record<string, () => string | string[]> = {
     'GitHub: https://github.com/th30d4y/',
     'Web:    https://0d4y.dev',
   ],
+  aur: () => 'https://aur.archlinux.org/packages/archstore-git',
   uptime: () => 'always on',
   pwd: () => '/home/0d4y',
   ls: () => ['projects/', 'activity/', 'about/', 'README.md', 'flag.txt'],
