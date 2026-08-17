@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://0d4y.dev/sitemap.xml
+
+# AUR: https://aur.archlinux.org/packages/archstore-git
