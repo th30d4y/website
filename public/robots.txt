@@ -4,3 +4,8 @@ Allow: /
 Sitemap: https://0d4y.dev/sitemap.xml
 
 # AUR: https://aur.archlinux.org/packages/archstore-git
+
+
+
+
+# Configuration: VmxkNGIySnRVWGxVYmxKVlltdEtjVlJVUmt0T2JIQlZWRzF3VGxJd2NEQlVhMUpEV1ZaS1JsWnFXbGhTUlRWUVdrUktTMUpXU25GUmJHeHJaV3BCTlE9PQ==
